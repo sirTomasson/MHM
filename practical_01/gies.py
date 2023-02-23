@@ -144,9 +144,8 @@ def com(series):
         coms.append(relative_com + vals[i + 1])
 
     com = 0
-    for i, c in enumerate(coms):
-        proportion = weight_proportions[i]
-        com += proportion * c
+    for proportion, center in zip(weight_proportions, coms):
+        com += proportion * center
     print(f"Com {com}")
     return com
 
