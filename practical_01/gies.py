@@ -128,31 +128,38 @@ plt.ylabel('marker position [mm]')
 plt.title('Interpolated signal')
 plt.legend()
 
-def get_baseline_positions(df):
+
+
+def com(series):
+    com_offsets = [0.714, 0.6, 0.625]  # torso, shin, thigh
+    weight_proportions = [53 / 77, 14 / 77, 10 / 77]
+
+    vals = []
+    for col in ['shoulder', 'hip', 'knee', 'ankle']:
+        vals.append(series[col])
+
+    coms = []
+    for i in range(3):
+        relative_com = (vals[i] - vals[i + 1]) * com_offsets[i]
+        coms.append(relative_com + vals[i + 1])
+
+    com = 0
+    for i, c in enumerate(coms):
+        proportion = weight_proportions[i]
+        com += proportion * c
+    print(f"Com {com}")
+    return com
+
+
+def get_baseline_com(df):
     start = 1500
     end = 3000
     res = df[start:end].mean()
 
-    return res
-
-def com(series):
-    #hip, knee, ankle, shoulder
-    print(f"Series {series}")
-    vals = []
-    for col in column_names:
-        print(series[col])
-        vals.append(series[col])
-    coms = []
-    coms.append((vals[1] - vals[2]) * com_offsets[0] + vals[1])
-    coms.append((vals[0] - vals[1]) * com_offsets[1] + vals[0])
-    coms.append((vals[3] - vals[0]) * com_offsets[2] + vals[3])
-    print(F"Coms {coms}")
-
+    return com(res)
 
 def calculate_height_optotrack(df):
-    df_baseline = get_baseline_positions(df)
-
-    com(df_baseline)
+    baseline_com = get_baseline_com(df)
 
     # for col in df.columns:
     #     df[col] -= baselines[col]
