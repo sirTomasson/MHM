@@ -4,6 +4,8 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 import scipy.signal as sig
 import scipy.integrate as integ
+import readndf
+from clean_optotrack import interpolate_advanced
 
 df_gies = pd.DataFrame()
 df_TN2 = pd.read_csv('data/TN000011.afp2',
@@ -64,22 +66,21 @@ def calibrate():
     return lambda y: (y) / a[0]
 
 
-def get_empty_baseline(Fy):
+def subtract_baseline(Fy):
     empty_start = 0
     empty_end = 3000
-    return np.mean(Fy[empty_start:empty_end])
+    return Fy - np.mean(Fy[empty_start:empty_end])
 
 
-def get_baselines(Fy):
+def get_baseline(Fy):
     baseline_start = 7000
     baseline_end = 11000
     return np.mean(Fy[baseline_start:baseline_end])
 
 
-def calculate_height(Fy, jump_boundaries, height):
-    empty = get_empty_baseline(Fy)
-    Fy = Fy - empty
-    baseline = get_baselines(Fy)
+def calculate_height_plate(Fy, jump_boundaries, height):
+    Fy = subtract_baseline(Fy)
+    baseline = get_baseline(Fy)
 
     mass = regression(baseline)
     Fg = mass * -gravity
@@ -105,11 +106,66 @@ def calculate_height(Fy, jump_boundaries, height):
 
         return height
 
-col = 'Fy_2'
-plot_df(df_gies, [col])
-
+# col = 'Fy_2'
+# plot_df(df_gies, [col])
 regression = calibrate()
 gravity = 9.81
-height = calculate_height(df_gies[col], [25000, 27000], 4.5)
+# height = calculate_height(df_gies[col], [25000, 27000], 4.5)
+
+column_names = ['hip', 'knee', 'ankle', 'shoulder']
+com_offsets = [0.625, 0.6, 0.714]  # shin, thigh, torso
+weight_proportions = []
+"""Only load the data of the Z-axis"""
+df_TN11 = pd.DataFrame(readndf.readndf("data/TN000011.ndf")[2])  # only interested in Z?
+df_TN11.columns = column_names
+df_TN11 = df_TN11.apply(interpolate_advanced)
+
+plt.figure()
+plt.plot(df_TN11, label=column_names)
+plt.xlim([0, 12000])
+plt.ylim([-50.0, 2000.0])
+plt.ylabel('marker position [mm]')
+plt.title('Interpolated signal')
+plt.legend()
+
+def get_baseline_positions(df):
+    start = 1500
+    end = 3000
+    res = df[start:end].mean()
+
+    return res
+
+def com(series):
+    #hip, knee, ankle, shoulder
+    print(f"Series {series}")
+    vals = []
+    for col in column_names:
+        print(series[col])
+        vals.append(series[col])
+    coms = []
+    coms.append((vals[1] - vals[2]) * com_offsets[0] + vals[1])
+    coms.append((vals[0] - vals[1]) * com_offsets[1] + vals[0])
+    coms.append((vals[3] - vals[0]) * com_offsets[2] + vals[3])
+    print(F"Coms {coms}")
+
+
+def calculate_height_optotrack(df):
+    df_baseline = get_baseline_positions(df)
+
+    com(df_baseline)
+
+    # for col in df.columns:
+    #     df[col] -= baselines[col]
+
+    # plt.figure()
+    # plt.plot(df, label=column_names)
+    # plt.xlim([0, 12000])
+    # plt.ylim([-50.0, 2000.0])
+    # plt.ylabel('marker position [mm]')
+    # plt.title('Interpolated signal')
+    # plt.legend()
+
+
+calculate_height_optotrack(df_TN11)
 
 plt.show()
