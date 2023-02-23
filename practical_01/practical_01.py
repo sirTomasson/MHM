@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.linear_model import LinearRegression
 
 df_colyn = pd.DataFrame()
 df_TN000004 = pd.read_csv('data/TN000004.afp2',
@@ -40,19 +41,19 @@ plt.show()
 
 stepsize = 30000
 window_size = 1000
-calibration = []
+voltages = []
 for i in range(0, len(df_calibration), stepsize):
     start = int(i + (stepsize/3))
     df = df_calibration[start:start+10000]
-    calibration.append(df.mean().values[0])
+    voltages.append(df.mean().values[0])
 
-plt.plot(calibration, label='calibration')
+plt.plot(voltages, label='calibration')
 plt.legend()
 plt.show()
 
 real_forces = np.array([0, 10, 20, 30, 40, 50, 60, 86.1, 115.22, 86.1, 60, 50, 40, 30, 20, 10, 0])
-calibration = np.array(calibration)
-factors = real_forces / calibration
+voltages = np.array(voltages)
+factors = real_forces / voltages
 
 plt.plot(factors, label='factors')
 plt.legend()
@@ -70,6 +71,28 @@ for i in range(0, len(df_calibration), stepsize):
     diffs.append(diff)
 
 
-plt.plot(diffs, label='diffs')
+plt.plot(diffs, label='drift')
+plt.legend()
+plt.show()
+
+
+plt.scatter(voltages[0:9], real_forces[0:9], label="up", marker="x")
+plt.scatter(voltages[8:17], real_forces[8:17], label="down", marker="+")
+plt.xlabel("measured [V]")
+plt.ylabel("weight [kg]")
+plt.legend()
+plt.show()
+
+reg = LinearRegression()
+reg.fit(voltages.reshape(-1, 1), real_forces)
+
+v_test = np.arange(0, 2.5, 0.1).reshape(-1, 1)
+w_pred = reg.predict(v_test)
+
+plt.scatter(voltages[0:9], real_forces[0:9], label="add", marker="x")
+plt.scatter(voltages[8:17], real_forces[8:17], label="down", marker="+")
+plt.plot(v_test, w_pred, label="predict", linewidth=1)
+plt.xlabel("measured [V]")
+plt.ylabel("weight [kg]")
 plt.legend()
 plt.show()
