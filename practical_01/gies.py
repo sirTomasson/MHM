@@ -5,6 +5,8 @@ from sklearn.linear_model import LinearRegression
 import scipy.signal as sig
 import scipy.integrate as integ
 import readndf
+from matplotlib.animation import FuncAnimation, FFMpegWriter, PillowWriter
+from functools import partial
 
 #region DATA
 
@@ -174,14 +176,22 @@ def com(series):
 
     return com
 
-def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False):
+def hip(series):
+    return series['hip']
+
+def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False, just_hip=False):
+    if isinstance(df, str):
+        print(f"File {df}")
+        df = pd.DataFrame(readndf.readndf(f"data/{df}")[2])
     df.columns = column_names
     df = df.apply(interpolate_advanced)
-    baseline_com = com(df[boundaries[0]:boundaries[1]].mean())
+    func = hip if just_hip else com
+
+    baseline_com = func(df[boundaries[0]:boundaries[1]].mean())
     if plot:
         plot_optotrack(df)
 
-    df['com'] = df.apply(com, axis=1)
+    df['com'] = df.apply(func, axis=1)
     coms = np.array(df['com'] - baseline_com) / 10
     if plot:
         plt.figure()
@@ -193,10 +203,51 @@ def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False):
     print(f"Jumps { heights}")
 
 
-calculate_heights_optotrack(df_opto_2)
-calculate_heights_optotrack(df_opto_R)
-calculate_heights_optotrack(df_opto_L, boundaries=[2500, 3500])
+
+calculate_heights_optotrack(df_opto_2, plot=True)
+calculate_heights_optotrack(df_opto_2, just_hip=True, plot=True)
+# calculate_heights_optotrack(df_opto_R)
+# calculate_heights_optotrack(df_opto_L, boundaries=[2500, 3500])
+# calculate_heights_optotrack('TN000024.ndf', boundaries=[1200, 1700], plot=True)
 
 #endregion
+
+#region ANIMATION
+
+def animate_ndf(file, save=False, speed=1):
+    ndf = readndf.readndf(f"data/{file}")
+    df_z = pd.DataFrame(ndf[2])  # Z
+    df_x = pd.DataFrame(ndf[0])  # X
+    df_z = df_z.apply(interpolate_advanced)
+    df_x = df_x.apply(interpolate_advanced)
+
+    jointz = df_z.to_numpy() / 10
+    jointx = df_x.to_numpy() / 10
+
+    fig, ax = plt.subplots()
+    line1, = ax.plot([], [], 'ro')
+
+    def init():
+        ax.set_xlim(-120, 120)
+        ax.set_ylim(0, 250)
+        return line1,
+
+    def update(frame, ln, x, y):
+        ln.set_data(x[frame], y[frame])
+        return ln,
+
+    ani = FuncAnimation(
+        fig, partial(update, ln=line1, x=jointx, y=jointz),
+        frames=range(0, len(jointx)),
+        init_func=init, blit=True, interval=1000 / 200 / speed)
+
+    plt.show()
+
+    if save:
+        writer = PillowWriter(fps=60)
+        ani.save('anitmate_jump.gif', writer=writer)
+
+#endregion
+
 
 plt.show()
