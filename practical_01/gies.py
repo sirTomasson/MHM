@@ -10,14 +10,23 @@ from functools import partial
 
 #region DATA
 
-df_gies = pd.DataFrame()
-df_plate_2 = pd.read_csv('data/TN000011.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
-df_plate_R = pd.read_csv('data/TN000012.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
-df_plate_L = pd.read_csv('data/TN000013.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
+def make_plate_df(file2, fileL, fileR):
+    df_gies = pd.DataFrame()
+    df_plate_2 = pd.read_csv(f'data/{file2}', delimiter='\t', usecols=[0, 1, 2, 3],
+                             names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
+    df_plate_R = pd.read_csv(f'data/{fileR}', delimiter='\t', usecols=[0, 1, 2, 3],
+                             names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
+    df_plate_L = pd.read_csv(f'data/{fileL}', delimiter='\t', usecols=[0, 1, 2, 3],
+                             names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
 
-df_gies['Fy_2'] = df_plate_2.sum(axis=1)
-df_gies['Fy_R'] = df_plate_R.sum(axis=1)
-df_gies['Fy_L'] = df_plate_L.sum(axis=1)
+    df_gies['Fy_2'] = df_plate_2.sum(axis=1)
+    df_gies['Fy_R'] = df_plate_R.sum(axis=1)
+    df_gies['Fy_L'] = df_plate_L.sum(axis=1)
+
+    return df_gies
+
+df_gies = make_plate_df('TN000011.afp2', 'TN000013.afp2', 'TN000012.afp2')
+df_marjolein = make_plate_df('TN000016.afp2', 'TN000015.afp2', 'TN000014.afp2')
 
 df_calibration = pd.DataFrame()
 df_TN000003 = pd.read_csv('data/TN000003.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
@@ -62,7 +71,7 @@ def calibrate():
 
 def subtract_empty_baseline(Fy):
     empty_start = 0
-    empty_end = 3000
+    empty_end = 4500
     return Fy - np.mean(Fy[empty_start:empty_end])
 
 
@@ -79,32 +88,26 @@ def calculate_height_plate(Fy, jump_boundaries, height):
 
     Fg = mass * -gravity
 
-    jump_start = jump_boundaries[0]
-    Fy_jump = Fy[jump_start:jump_boundaries[1]]
-    peaks, _ = sig.find_peaks(Fy_jump, height=height)
-    if len(peaks > 0):
-        jump_end = peaks[0] + jump_start
+    Fy_jump = Fy[jump_boundaries[0]:jump_boundaries[1]]
+    Fy_jump = np.array([regression(volt) for volt in Fy_jump]) * 9.81
+    a = (Fy_jump + Fg) / mass
 
-        Fy_jump = Fy[jump_start:jump_end]
-        Fy_jump = np.array([regression(volt) for volt in Fy_jump]) * 9.81
-        a = (Fy_jump + Fg) / mass
+    v = integ.cumtrapz(a) / 1000
+    r = integ.cumtrapz(v) / 1000
+    height = max(r)
 
-        v = integ.cumtrapz(a) / 1000
-        r = integ.cumtrapz(v) / 1000
-        height = max(r)
+    print(f"Height {height}")
 
-        print(f"Height {height}")
+    plt.figure()
+    plt.plot(r)
 
-        plt.figure()
-        plt.plot(r)
+    return height
 
-        return height
-
-# col = 'Fy_2'
-# plot_df(df_gies, [col])
+col = 'Fy_2'
+plot_df(df_marjolein, [col])
 regression = calibrate()
 gravity = 9.81
-# height = calculate_height(df_gies[col], [25000, 27000], 4.5)
+height = calculate_height_plate(df_marjolein[col], [12000, 15000], 3.0)
 
 #endregion
 
@@ -204,8 +207,8 @@ def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False, just_hi
 
 
 
-calculate_heights_optotrack(df_opto_2, plot=True)
-calculate_heights_optotrack(df_opto_2, just_hip=True, plot=True)
+calculate_heights_optotrack(df_opto_2)
+calculate_heights_optotrack(df_opto_2, just_hip=True)
 # calculate_heights_optotrack(df_opto_R)
 # calculate_heights_optotrack(df_opto_L, boundaries=[2500, 3500])
 # calculate_heights_optotrack('TN000024.ndf', boundaries=[1200, 1700], plot=True)
