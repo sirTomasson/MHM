@@ -10,31 +10,31 @@ from functools import partial
 
 #region DATA
 
-def make_plate_df(file2, fileL, fileR):
+def make_dfs(file2, fileL, fileR):
     df_gies = pd.DataFrame()
-    df_plate_2 = pd.read_csv(f'data/{file2}', delimiter='\t', usecols=[0, 1, 2, 3],
+    df_plate_2 = pd.read_csv(f'data/{file2}.afp2', delimiter='\t', usecols=[0, 1, 2, 3],
                              names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
-    df_plate_R = pd.read_csv(f'data/{fileR}', delimiter='\t', usecols=[0, 1, 2, 3],
+    df_plate_R = pd.read_csv(f'data/{fileR}.afp2', delimiter='\t', usecols=[0, 1, 2, 3],
                              names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
-    df_plate_L = pd.read_csv(f'data/{fileL}', delimiter='\t', usecols=[0, 1, 2, 3],
+    df_plate_L = pd.read_csv(f'data/{fileL}.afp2', delimiter='\t', usecols=[0, 1, 2, 3],
                              names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
 
     df_gies['Fy_2'] = df_plate_2.sum(axis=1)
     df_gies['Fy_R'] = df_plate_R.sum(axis=1)
     df_gies['Fy_L'] = df_plate_L.sum(axis=1)
 
-    return df_gies
+    df_opto_2 = pd.DataFrame(readndf.readndf(f'data/{file2}.ndf')[2])
+    df_opto_R = pd.DataFrame(readndf.readndf(f'data/{fileR}.ndf')[2])
+    df_opto_L = pd.DataFrame(readndf.readndf(f'data/{fileL}.ndf')[2])
 
-df_gies = make_plate_df('TN000011.afp2', 'TN000013.afp2', 'TN000012.afp2')
-df_marjolein = make_plate_df('TN000016.afp2', 'TN000015.afp2', 'TN000014.afp2')
+    return df_gies, df_opto_2, df_opto_R, df_opto_L
+
+df_gies, df_opto_2, df_opto_R, df_opto_L = make_dfs('TN000011', 'TN000013', 'TN000012')
+df_marjolein, df_opto_m2, df_opto_mR, df_opto_mL = make_dfs('TN000016', 'TN000015', 'TN000014')
 
 df_calibration = pd.DataFrame()
 df_TN000003 = pd.read_csv('data/TN000003.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
 df_calibration['Fy'] = df_TN000003.sum(axis=1)
-
-df_opto_2 = pd.DataFrame(readndf.readndf("data/TN000011.ndf")[2])
-df_opto_R = pd.DataFrame(readndf.readndf("data/TN000012.ndf")[2])
-df_opto_L = pd.DataFrame(readndf.readndf("data/TN000013.ndf")[2])
 
 #endregion
 
@@ -207,8 +207,8 @@ def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False, just_hi
 
 
 
-calculate_heights_optotrack(df_opto_2)
-calculate_heights_optotrack(df_opto_2, just_hip=True)
+calculate_heights_optotrack(df_opto_m2)
+calculate_heights_optotrack(df_opto_m2, just_hip=True)
 # calculate_heights_optotrack(df_opto_R)
 # calculate_heights_optotrack(df_opto_L, boundaries=[2500, 3500])
 # calculate_heights_optotrack('TN000024.ndf', boundaries=[1200, 1700], plot=True)
