@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import calibrate
+from sklearn.linear_model import LinearRegression
+
 
 real_forces = np.array([0, 10, 20, 30, 40, 50, 60, 86.1, 115.22, 86.1, 60, 50, 40, 30, 20, 10, 0])
 df_measured_voltages = calibrate.get_measured_voltages()
@@ -48,7 +50,8 @@ plt.legend()
 plt.title("Drift")
 plt.show()
 
-reg = calibrate.calibrate(real_forces, voltages)
+reg = LinearRegression()
+reg = calibrate.calibrate(real_forces, voltages, reg)
 w_test = np.arange(0, np.max(real_forces), 1).reshape(-1, 1)
 v_pred = reg.predict(w_test)
 

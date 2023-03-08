@@ -30,7 +30,7 @@ df_youri['L [V]'] -= df_youri['L [V]'][0:1000].mean()
 df_youri['R [V]'] -= df_youri['R [V]'][0:1000].mean()
 
 plt.plot(df_youri, label=['2legs [V]', 'L [V]', 'R [V]'])
-plt.xlim([0, 50000])
+plt.xlim()
 plt.ylim([0, 5.0])
 plt.legend()
 plt.title("Youri's jumps")

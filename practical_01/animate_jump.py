@@ -24,8 +24,20 @@ df_jointx = pd.DataFrame(readndf.readndf("data/TN000004.ndf")[0])  # X
 df_jointz = df_jointz.apply(clean_optotrack.interpolate_advanced)
 df_jointx = df_jointx.apply(clean_optotrack.interpolate_advanced)
 
-jointz = df_jointz.to_numpy() / 10
-jointx = df_jointx.to_numpy() / 10
+df_jointz_temp = pd.DataFrame()
+df_jointz_temp['ankle'] = df_jointz.to_numpy()[:, 2]
+df_jointz_temp['knee'] = df_jointz.to_numpy()[:, 1]
+df_jointz_temp['hip'] = df_jointz.to_numpy()[:, 0]
+df_jointz_temp['shoulder'] = df_jointz.to_numpy()[:, 3]
+
+df_jointx_temp = pd.DataFrame()
+df_jointx_temp['ankle'] = df_jointx.to_numpy()[:, 2]
+df_jointx_temp['knee'] = df_jointx.to_numpy()[:, 1]
+df_jointx_temp['hip'] = df_jointx.to_numpy()[:, 0]
+df_jointx_temp['shoulder'] = df_jointx.to_numpy()[:, 3]
+
+jointz = df_jointz_temp.to_numpy() / 10
+jointx = df_jointx_temp.to_numpy() / 10
 
 # plt.scatter(jointx[0], jointz[0],  label=['hip', 'knee', 'ankle', 'shoulder'])
 # plt.xlim([0, 120])
@@ -35,7 +47,7 @@ jointx = df_jointx.to_numpy() / 10
 # plot_joints(jointx[0], jointz[0])
 
 fig, ax = plt.subplots()
-line1, = ax.plot([], [], 'ro')
+line1, = ax.plot([], [], marker='+')
 
 
 def init():
@@ -51,10 +63,10 @@ def update(frame, ln, x, y):
 
 ani = FuncAnimation(
     fig, partial(update, ln=line1, x=jointx, y=jointz),
-    frames=range(0, len(jointx), 10),
+    frames=range(0, len(jointx), 100),
     init_func=init, blit=True)
 
 plt.show()
 
-writer = PillowWriter(fps=30)
-ani.save('anitmate_jump.gif', writer=writer)
+# writer = PillowWriter(fps=30)
+# ani.save('anitmate_jump.gif', writer=writer)
