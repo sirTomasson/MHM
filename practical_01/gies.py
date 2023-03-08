@@ -5,25 +5,36 @@ from sklearn.linear_model import LinearRegression
 import scipy.signal as sig
 import scipy.integrate as integ
 import readndf
+from matplotlib.animation import FuncAnimation, FFMpegWriter, PillowWriter
+from functools import partial
 
 #region DATA
 
-df_gies = pd.DataFrame()
-df_plate_2 = pd.read_csv('data/TN000011.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
-df_plate_R = pd.read_csv('data/TN000012.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
-df_plate_L = pd.read_csv('data/TN000013.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
+def make_dfs(file2, fileL, fileR):
+    df_gies = pd.DataFrame()
+    df_plate_2 = pd.read_csv(f'data/{file2}.afp2', delimiter='\t', usecols=[0, 1, 2, 3],
+                             names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
+    df_plate_R = pd.read_csv(f'data/{fileR}.afp2', delimiter='\t', usecols=[0, 1, 2, 3],
+                             names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
+    df_plate_L = pd.read_csv(f'data/{fileL}.afp2', delimiter='\t', usecols=[0, 1, 2, 3],
+                             names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
 
-df_gies['Fy_2'] = df_plate_2.sum(axis=1)
-df_gies['Fy_R'] = df_plate_R.sum(axis=1)
-df_gies['Fy_L'] = df_plate_L.sum(axis=1)
+    df_gies['Fy_2'] = df_plate_2.sum(axis=1)
+    df_gies['Fy_R'] = df_plate_R.sum(axis=1)
+    df_gies['Fy_L'] = df_plate_L.sum(axis=1)
+
+    df_opto_2 = pd.DataFrame(readndf.readndf(f'data/{file2}.ndf')[2])
+    df_opto_R = pd.DataFrame(readndf.readndf(f'data/{fileR}.ndf')[2])
+    df_opto_L = pd.DataFrame(readndf.readndf(f'data/{fileL}.ndf')[2])
+
+    return df_gies, df_opto_2, df_opto_R, df_opto_L
+
+df_gies, df_opto_2, df_opto_R, df_opto_L = make_dfs('TN000011', 'TN000013', 'TN000012')
+df_marjolein, df_opto_m2, df_opto_mR, df_opto_mL = make_dfs('TN000016', 'TN000015', 'TN000014')
 
 df_calibration = pd.DataFrame()
 df_TN000003 = pd.read_csv('data/TN000003.afp2', delimiter='\t', usecols=[0, 1, 2, 3], names=['Fy0', 'Fy1', 'Fy2', 'Fy3'])
 df_calibration['Fy'] = df_TN000003.sum(axis=1)
-
-df_opto_2 = pd.DataFrame(readndf.readndf("data/TN000011.ndf")[2])
-df_opto_R = pd.DataFrame(readndf.readndf("data/TN000012.ndf")[2])
-df_opto_L = pd.DataFrame(readndf.readndf("data/TN000013.ndf")[2])
 
 #endregion
 
@@ -60,7 +71,7 @@ def calibrate():
 
 def subtract_empty_baseline(Fy):
     empty_start = 0
-    empty_end = 3000
+    empty_end = 4500
     return Fy - np.mean(Fy[empty_start:empty_end])
 
 
@@ -77,32 +88,26 @@ def calculate_height_plate(Fy, jump_boundaries, height):
 
     Fg = mass * -gravity
 
-    jump_start = jump_boundaries[0]
-    Fy_jump = Fy[jump_start:jump_boundaries[1]]
-    peaks, _ = sig.find_peaks(Fy_jump, height=height)
-    if len(peaks > 0):
-        jump_end = peaks[0] + jump_start
+    Fy_jump = Fy[jump_boundaries[0]:jump_boundaries[1]]
+    Fy_jump = np.array([regression(volt) for volt in Fy_jump]) * 9.81
+    a = (Fy_jump + Fg) / mass
 
-        Fy_jump = Fy[jump_start:jump_end]
-        Fy_jump = np.array([regression(volt) for volt in Fy_jump]) * 9.81
-        a = (Fy_jump + Fg) / mass
+    v = integ.cumtrapz(a) / 1000
+    r = integ.cumtrapz(v) / 1000
+    height = max(r)
 
-        v = integ.cumtrapz(a) / 1000
-        r = integ.cumtrapz(v) / 1000
-        height = max(r)
+    print(f"Height {height}")
 
-        print(f"Height {height}")
+    plt.figure()
+    plt.plot(r)
 
-        plt.figure()
-        plt.plot(r)
+    return height
 
-        return height
-
-# col = 'Fy_2'
-# plot_df(df_gies, [col])
+col = 'Fy_2'
+plot_df(df_marjolein, [col])
 regression = calibrate()
 gravity = 9.81
-# height = calculate_height(df_gies[col], [25000, 27000], 4.5)
+height = calculate_height_plate(df_marjolein[col], [12000, 15000], 3.0)
 
 #endregion
 
@@ -174,14 +179,22 @@ def com(series):
 
     return com
 
-def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False):
+def hip(series):
+    return series['hip']
+
+def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False, just_hip=False):
+    if isinstance(df, str):
+        print(f"File {df}")
+        df = pd.DataFrame(readndf.readndf(f"data/{df}")[2])
     df.columns = column_names
     df = df.apply(interpolate_advanced)
-    baseline_com = com(df[boundaries[0]:boundaries[1]].mean())
+    func = hip if just_hip else com
+
+    baseline_com = func(df[boundaries[0]:boundaries[1]].mean())
     if plot:
         plot_optotrack(df)
 
-    df['com'] = df.apply(com, axis=1)
+    df['com'] = df.apply(func, axis=1)
     coms = np.array(df['com'] - baseline_com) / 10
     if plot:
         plt.figure()
@@ -193,10 +206,51 @@ def calculate_heights_optotrack(df, boundaries=[1500, 2500], plot=False):
     print(f"Jumps { heights}")
 
 
-calculate_heights_optotrack(df_opto_2)
-calculate_heights_optotrack(df_opto_R)
-calculate_heights_optotrack(df_opto_L, boundaries=[2500, 3500])
+
+calculate_heights_optotrack(df_opto_m2)
+calculate_heights_optotrack(df_opto_m2, just_hip=True)
+# calculate_heights_optotrack(df_opto_R)
+# calculate_heights_optotrack(df_opto_L, boundaries=[2500, 3500])
+# calculate_heights_optotrack('TN000024.ndf', boundaries=[1200, 1700], plot=True)
 
 #endregion
+
+#region ANIMATION
+
+def animate_ndf(file, save=False, speed=1):
+    ndf = readndf.readndf(f"data/{file}")
+    df_z = pd.DataFrame(ndf[2])  # Z
+    df_x = pd.DataFrame(ndf[0])  # X
+    df_z = df_z.apply(interpolate_advanced)
+    df_x = df_x.apply(interpolate_advanced)
+
+    jointz = df_z.to_numpy() / 10
+    jointx = df_x.to_numpy() / 10
+
+    fig, ax = plt.subplots()
+    line1, = ax.plot([], [], 'ro')
+
+    def init():
+        ax.set_xlim(-120, 120)
+        ax.set_ylim(0, 250)
+        return line1,
+
+    def update(frame, ln, x, y):
+        ln.set_data(x[frame], y[frame])
+        return ln,
+
+    ani = FuncAnimation(
+        fig, partial(update, ln=line1, x=jointx, y=jointz),
+        frames=range(0, len(jointx)),
+        init_func=init, blit=True, interval=1000 / 200 / speed)
+
+    plt.show()
+
+    if save:
+        writer = PillowWriter(fps=60)
+        ani.save('anitmate_jump.gif', writer=writer)
+
+#endregion
+
 
 plt.show()
